@@ -16,6 +16,7 @@ search has daily quotas. It does NOT scan all of a platform by video content
 from __future__ import annotations
 
 import json
+import sys
 import os
 import subprocess
 import urllib.parse
@@ -56,7 +57,7 @@ def search_youtube(query: str, limit: int = 5) -> list[dict]:
     results = []
     try:
         out = subprocess.run(
-            ["yt-dlp", f"ytsearch{limit}:{query}", "--flat-playlist",
+            [sys.executable, "-m", "yt_dlp", f"ytsearch{limit}:{query}", "--flat-playlist",
              "--print", "%(webpage_url)s|%(title)s"],
             capture_output=True, text=True, check=False).stdout
         for line in out.splitlines():
@@ -91,7 +92,7 @@ def download(url: str, out_dir: str = DOWNLOAD_DIR):
     os.makedirs(out_dir, exist_ok=True)
     before = set(os.listdir(out_dir))
     subprocess.run(
-        ["yt-dlp", "-f", "mp4/bestvideo+bestaudio/best",
+        [sys.executable, "-m", "yt_dlp", "-f", "mp4/bestvideo+bestaudio/best",
          "-o", os.path.join(out_dir, "%(id)s.%(ext)s"), url],
         check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     new = [f for f in (set(os.listdir(out_dir)) - before)
