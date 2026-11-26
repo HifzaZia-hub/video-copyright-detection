@@ -12,7 +12,10 @@ FRAMES_PER_SECOND = 1.0
 # --- hash method ---
 # Perceptual-hash distance (0-64). Two frames "match" when their hash
 # difference is <= this. Lower = stricter.
-HASH_MATCH_DISTANCE = 10
+# Tuned to 20: measured cropped-copy frames averaged ~17, so 10 was too
+# strict and rejected real copies. 20 catches crops/resizes while staying
+# well below the ~32 distance of unrelated videos.
+HASH_MATCH_DISTANCE = 20
 
 # --- clip method ---
 # Cosine similarity (0-1) above which two frames count as the same shot.
