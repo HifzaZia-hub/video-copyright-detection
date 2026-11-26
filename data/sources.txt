@@ -1,0 +1,12 @@
+# Put one video URL per line (YouTube, archive.org, etc.).
+# Lines starting with # are ignored.
+# Use ONLY Creative Commons / public-domain videos to stay free and legal.
+#
+# How to find Creative Commons videos on YouTube:
+#   1. Search your topic on YouTube
+#   2. Click "Filters" -> under "Features" choose "Creative Commons"
+#   3. Copy the video links here
+#
+# Example (replace with your own CC links):
+# https://www.youtube.com/watch?v=aqz-KE-bpKQ
+# https://archive.org/details/BigBuckBunny_124
