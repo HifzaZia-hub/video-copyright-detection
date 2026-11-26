@@ -1,0 +1,15 @@
+# Core (lightweight, CPU-friendly, all free/open-source)
+opencv-python
+imagehash
+Pillow
+numpy
+scikit-learn
+streamlit
+faster-whisper
+yt-dlp
+
+# Optional accuracy upgrades (Part 3) — uncomment if you want them
+# torch
+# git+https://github.com/openai/CLIP.git
+# faiss-cpu
+# sentence-transformers

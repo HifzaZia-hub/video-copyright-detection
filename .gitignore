@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+
+# Data & models (too big for GitHub — keep locally)
+data/originals/*
+data/copies/*
+data/downloads/*
+!data/**/.gitkeep
+*.mp4
+*.mkv
+*.webm
+*.wav
+models/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
