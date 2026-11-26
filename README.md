@@ -43,12 +43,28 @@ This matches the Limitations already stated in the project proposal.
 ```bash
 pip install -r requirements.txt
 
+# One-video agent: upload nothing — point it at your video, it searches
+# YouTube + Dailymotion by keywords, downloads candidates, and returns matches:
+python -m src.search_agent --original data/originals/myvideo.mp4
+
 # Compare two videos directly (original vs suspected copy):
 python -m src.pipeline --original data/originals/myvideo.mp4 --suspect data/downloads/suspect.mp4
 
 # Or launch the website (works as website + mobile browser + desktop):
 streamlit run app/streamlit_app.py
 ```
+
+## One-video online search (closest to "find my copy")
+Mode **"Find copies online (upload one)"** in the website: you upload a single
+video, the agent transcribes it, extracts keywords, searches **YouTube** and
+**Dailymotion**, downloads the candidate videos, compares each against yours,
+and lists the ones above the threshold **with their links**.
+
+**Honest limit:** this finds copies that are *discoverable by keyword search*.
+A re-upload with a totally unrelated title can be missed, and free search has
+daily quotas. No public tool can scan an entire platform by video *content* —
+only the platforms themselves (e.g. YouTube Content ID) can, on private
+infrastructure. This keyword approach is the realistic free version.
 
 ## How the score works
 - Frames are sampled at ~1 per second from both videos.

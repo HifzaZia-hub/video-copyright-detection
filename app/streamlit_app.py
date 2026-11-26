@@ -14,6 +14,7 @@ import streamlit as st
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.config import COPY_THRESHOLD  # noqa: E402
 from src.pipeline import compare_two, search_collection  # noqa: E402
+from src.search_agent import find_copies  # noqa: E402
 
 st.set_page_config(page_title="Video Copyright Detector", page_icon="🎬")
 st.title("🎬 Video Copyright Detector")
@@ -28,15 +29,46 @@ def _save_upload(upload) -> str:
     return tmp.name
 
 
-mode = st.radio("Mode", ["Compare two videos", "Search my collection"])
+mode = st.radio(
+    "Mode",
+    ["Find copies online (upload one)", "Compare two videos", "Search my collection"],
+)
 
-if mode == "Compare two videos":
+# --------------------------------------------------- one-video online agent ---
+if mode == "Find copies online (upload one)":
+    st.write("Upload **one** video. The agent pulls keywords from its audio, "
+             "searches YouTube + Dailymotion, downloads candidates, and checks "
+             "each one against your video.")
+    original = st.file_uploader("Your original video", type=["mp4", "mkv", "webm", "mov"])
+    title = st.text_input("Optional: title / extra keywords", "")
+    per_source = st.slider("Candidates per site", 3, 10, 5)
+
+    st.caption("⚠️ Finds copies discoverable by keyword search — not every copy "
+               "on the internet. Free search has daily limits.")
+
+    if st.button("Find copies", disabled=not original):
+        with st.spinner("Searching, downloading and comparing… this can take a while."):
+            out = find_copies(_save_upload(original), title=title, per_source=per_source)
+        st.write(f"**Search query used:** {out['query']}")
+        if not out["results"]:
+            st.info("No candidates found or downloaded. Try adding a title/keywords.")
+        for h in out["results"]:
+            is_copy = h["combined"] >= COPY_THRESHOLD
+            head = "⚠️ COPY" if is_copy else "ok"
+            st.markdown(
+                f"**{h['combined']*100:.0f}%** — {head} — *{h['source']}*  \n"
+                f"[{h['title']}]({h['url']})  \n"
+                f"frames {h['frame_score']*100:.0f}% · text {h['text_score']*100:.0f}% "
+                f"· saved as `{h['file']}`")
+
+# ----------------------------------------------------------- compare two ---
+elif mode == "Compare two videos":
     c1, c2 = st.columns(2)
     original = c1.file_uploader("Original video", type=["mp4", "mkv", "webm", "mov"])
     suspect = c2.file_uploader("Suspected copy", type=["mp4", "mkv", "webm", "mov"])
 
     if st.button("Check", disabled=not (original and suspect)):
-        with st.spinner("Analysing… (the agent takes the time it needs)"):
+        with st.spinner("Analysing…"):
             result = compare_two(_save_upload(original), _save_upload(suspect))
         st.metric("Combined similarity", f"{result['combined']*100:.0f}%")
         st.write(f"Frame match: **{result['frame_score']*100:.0f}%**  |  "
@@ -46,6 +78,7 @@ if mode == "Compare two videos":
         else:
             st.success("✅ Not a copy by the current threshold")
 
+# -------------------------------------------------------- search folder ---
 else:
     st.info("Put your reference videos in **data/downloads/** "
             "(optionally add data/downloads/links.json for source URLs).")
