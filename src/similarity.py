@@ -1,17 +1,16 @@
 """Scoring: frame similarity, text similarity, and their combination."""
 from __future__ import annotations
 
+import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-from .config import FRAME_WEIGHT, HASH_MATCH_DISTANCE, TEXT_WEIGHT
+from .config import (CLIP_SIM_THRESHOLD, FRAME_WEIGHT, HASH_MATCH_DISTANCE,
+                     TEXT_WEIGHT)
 
 
 def frame_similarity(orig_hashes, suspect_hashes) -> float:
-    """Share of original frames that have a close match in the suspect video.
-
-    Returns 0..1. Order-independent, so it tolerates trimming/reordering.
-    """
+    """Hash method: share of original frames with a close hash match. 0..1."""
     if not orig_hashes or not suspect_hashes:
         return 0.0
     matched = 0
@@ -20,6 +19,19 @@ def frame_similarity(orig_hashes, suspect_hashes) -> float:
         if best <= HASH_MATCH_DISTANCE:
             matched += 1
     return matched / len(orig_hashes)
+
+
+def clip_frame_similarity(emb_orig: np.ndarray, emb_suspect: np.ndarray) -> float:
+    """CLIP method: share of original frames whose best cosine match in the
+    suspect is above the threshold. Order-independent (tolerates trim/reorder).
+    """
+    if emb_orig is None or emb_suspect is None:
+        return 0.0
+    if len(emb_orig) == 0 or len(emb_suspect) == 0:
+        return 0.0
+    sims = emb_orig @ emb_suspect.T          # cosine (vectors are normalised)
+    best = sims.max(axis=1)
+    return float((best >= CLIP_SIM_THRESHOLD).mean())
 
 
 def text_similarity(text_a: str, text_b: str) -> float:
@@ -32,7 +44,6 @@ def text_similarity(text_a: str, text_b: str) -> float:
         tfidf = TfidfVectorizer().fit_transform([a, b])
         return float(cosine_similarity(tfidf[0:1], tfidf[1:2])[0][0])
     except ValueError:
-        # happens if both texts are only stop-words
         return 0.0
 
 

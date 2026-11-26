@@ -12,15 +12,26 @@ import json
 import os
 
 from .audio import transcribe
-from .config import COPY_THRESHOLD
-from .frames import extract_frame_hashes
-from .similarity import combine, frame_similarity, text_similarity
+from .config import COPY_THRESHOLD, METHOD
+from .frames import extract_frame_hashes, extract_frames
+from .similarity import (clip_frame_similarity, combine, frame_similarity,
+                         text_similarity)
+
+
+def _frame_score(original_path: str, suspect_path: str) -> float:
+    """Pick the frame-matching method from config (hash baseline or CLIP ML)."""
+    if METHOD == "clip":
+        from .features_clip import frame_embeddings
+        emb_o = frame_embeddings(extract_frames(original_path))
+        emb_s = frame_embeddings(extract_frames(suspect_path))
+        return clip_frame_similarity(emb_o, emb_s)
+    orig_hashes = extract_frame_hashes(original_path)
+    suspect_hashes = extract_frame_hashes(suspect_path)
+    return frame_similarity(orig_hashes, suspect_hashes)
 
 
 def compare_two(original_path: str, suspect_path: str) -> dict:
-    orig_hashes = extract_frame_hashes(original_path)
-    suspect_hashes = extract_frame_hashes(suspect_path)
-    frame_score = frame_similarity(orig_hashes, suspect_hashes)
+    frame_score = _frame_score(original_path, suspect_path)
 
     orig_text = transcribe(original_path)
     suspect_text = transcribe(suspect_path)
