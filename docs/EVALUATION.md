@@ -9,7 +9,7 @@ In `src/config.py` set `METHOD`:
 
 - `METHOD = "hash"` — **baseline**: perceptual hashing. Fast, free, no GPU.
 - `METHOD = "clip"` — **ML**: CLIP deep-learning frame embeddings. Needs
-  `pip install torch open_clip_torch` (runs free on Google Colab's GPU).
+  `pip install -r requirements-clip.txt` (runs free on Google Colab's GPU).
 
 ## Steps
 
@@ -35,13 +35,22 @@ Recall    : 0.88
 F1-score  : 0.90
 TP=..  FP=..  FN=..  TN=..
 
-Per-edit recall:
-  bright    100.0%
-  crop       80.0%
-  flip       60.0%
-  resize    100.0%
-  trim       90.0%
+Recall by copy type:
+  full      95.0%
+  partial   80.0%
+
+Recall by edit:
+  bright   100.0%
+  crop      80.0%
+  flip      60.0%
+  half      85.0%     <- partial (first 50%)
+  resize   100.0%
+  trim      90.0%     <- partial (15s clip)
 ```
+
+**Full vs partial** is reported separately on purpose: a system can be great
+at catching whole re-uploads but weaker on short partial copies, and the
+report should show that difference honestly.
 
 ## How to read it (plain words)
 

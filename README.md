@@ -42,6 +42,8 @@ This matches the Limitations already stated in the project proposal.
 ## Quick start
 ```bash
 pip install -r requirements.txt
+# For the ML method, also: pip install -r requirements-clip.txt
+#   then set METHOD = "clip" in src/config.py
 
 # One-video agent: upload nothing — point it at your video, it searches
 # YouTube + Dailymotion by keywords, downloads candidates, and returns matches:
@@ -66,14 +68,23 @@ daily quotas. No public tool can scan an entire platform by video *content* —
 only the platforms themselves (e.g. YouTube Content ID) can, on private
 infrastructure. This keyword approach is the realistic free version.
 
-## How the score works
-- Frames are sampled at ~1 per second from both videos.
-- Each frame gets a perceptual hash; a suspect frame "matches" an original frame when the hashes are close
-  (robust to crop, resize, brightness, flip, light filters).
-- `frame_score` = share of original frames that found a match.
-- `text_score` = TF-IDF cosine similarity of the two transcripts.
-- `combined = 0.6 * frame_score + 0.4 * text_score` (auto-reweights if a video has no speech).
-- Verdict = **COPY** when `combined >= THRESHOLD` (default 0.75, set in `src/config.py`).
+## How the score works (full vs partial copies)
+- Frames are sampled at ~1 per second from both videos and matched
+  (perceptual hash by default; CLIP embeddings in ML mode). Robust to crop,
+  resize, brightness, flip and light filters.
+- We measure **coverage in both directions** instead of one averaged number:
+  - `original_coverage` = share of **your** frames found in the suspect
+    (how much of your video was used)
+  - `suspect_coverage` = share of **their** frames found in your original
+    (how much of their video is made from yours)
+- `text_score` = TF-IDF similarity of the transcripts (audio).
+- **Verdict** (threshold `VISUAL_THRESHOLD`, default 0.70, in `src/config.py`):
+  - **full copy** — both coverages high
+  - **partial copy** — one coverage high (e.g. a trimmed 50% clip: their
+    coverage ~100%, your coverage ~50% → reported honestly as partial)
+  - **audio/narration match** — visuals differ but transcripts match
+  - a strong **visual** match alone is enough — different narration can never
+    hide a visual copy (audio only adds a flag, never lowers the result)
 
 ## Group
 Zainab Tariq (BSDSF24M004), Saneela Aziz (BSDSF24M022), Hifza Zia (BSDSF24M034) — BS Data Science, Machine Learning course.

@@ -12,13 +12,13 @@ import tempfile
 import streamlit as st
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from src.config import COPY_THRESHOLD  # noqa: E402
 from src.pipeline import compare_two, search_collection  # noqa: E402
 from src.search_agent import find_copies  # noqa: E402
 
 st.set_page_config(page_title="Video Copyright Detector", page_icon="🎬")
 st.title("🎬 Video Copyright Detector")
-st.caption("Compare audio text + video frames to find likely copies. 100% free & open-source.")
+st.caption("Compare audio text + video frames to find full and partial copies. "
+           "100% free & open-source.")
 
 
 def _save_upload(upload) -> str:
@@ -27,6 +27,20 @@ def _save_upload(upload) -> str:
     tmp.write(upload.read())
     tmp.close()
     return tmp.name
+
+
+def _verdict_box(r):
+    """Show a result with full/partial detail."""
+    v = r["verdict"]
+    msg = (f"**{v.upper()}** — {r['suspect_coverage']*100:.0f}% of their video "
+           f"is from yours · it covers {r['original_coverage']*100:.0f}% of your "
+           f"original · audio {r['text_score']*100:.0f}%")
+    if v == "not a copy":
+        st.success("✅ " + msg)
+    elif v == "full copy":
+        st.error("⚠️ " + msg)
+    else:
+        st.warning("⚠️ " + msg)
 
 
 mode = st.radio(
@@ -53,13 +67,9 @@ if mode == "Find copies online (upload one)":
         if not out["results"]:
             st.info("No candidates found or downloaded. Try adding a title/keywords.")
         for h in out["results"]:
-            is_copy = h["combined"] >= COPY_THRESHOLD
-            head = "⚠️ COPY" if is_copy else "ok"
-            st.markdown(
-                f"**{h['combined']*100:.0f}%** — {head} — *{h['source']}*  \n"
-                f"[{h['title']}]({h['url']})  \n"
-                f"frames {h['frame_score']*100:.0f}% · text {h['text_score']*100:.0f}% "
-                f"· saved as `{h['file']}`")
+            st.markdown(f"[{h['title']}]({h['url']}) · *{h['source']}* · "
+                        f"saved as `{h['file']}`")
+            _verdict_box(h)
 
 # ----------------------------------------------------------- compare two ---
 elif mode == "Compare two videos":
@@ -69,14 +79,11 @@ elif mode == "Compare two videos":
 
     if st.button("Check", disabled=not (original and suspect)):
         with st.spinner("Analysing…"):
-            result = compare_two(_save_upload(original), _save_upload(suspect))
-        st.metric("Combined similarity", f"{result['combined']*100:.0f}%")
-        st.write(f"Frame match: **{result['frame_score']*100:.0f}%**  |  "
-                 f"Text match: **{result['text_score']*100:.0f}%**")
-        if result["is_copy"]:
-            st.error(f"⚠️ Likely a COPY (≥ {int(COPY_THRESHOLD*100)}% threshold)")
-        else:
-            st.success("✅ Not a copy by the current threshold")
+            r = compare_two(_save_upload(original), _save_upload(suspect))
+        c1, c2 = st.columns(2)
+        c1.metric("Their video from yours", f"{r['suspect_coverage']*100:.0f}%")
+        c2.metric("Your original covered", f"{r['original_coverage']*100:.0f}%")
+        _verdict_box(r)
 
 # -------------------------------------------------------- search folder ---
 else:
@@ -89,8 +96,8 @@ else:
         with st.spinner("Searching your collection…"):
             hits = search_collection(_save_upload(sample), folder)
         for h in hits:
-            label = "⚠️ COPY" if h["is_copy"] else "ok"
-            line = f"**{h['suspect']}** — {h['combined']*100:.0f}%  ({label})"
+            title = f"**{h['suspect']}**"
             if h.get("link"):
-                line += f" — [source]({h['link']})"
-            st.write(line)
+                title += f" — [source]({h['link']})"
+            st.markdown(title)
+            _verdict_box(h)

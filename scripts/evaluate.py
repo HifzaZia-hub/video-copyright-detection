@@ -2,7 +2,8 @@
 
 Reads data/manifest.csv (made by build_manifest.py). Every COPY should be
 detected as a copy of its source ORIGINAL. We check every (copy, original)
-pair and compute precision, recall, F1, plus a per-edit breakdown.
+pair, use the system's own verdict (is_copy), and compute precision, recall
+and F1 — reported separately for FULL copies and PARTIAL copies.
 
     python scripts/build_manifest.py     # first, build the ground truth
     python scripts/evaluate.py           # then, measure
@@ -19,14 +20,22 @@ import sys
 from collections import defaultdict
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from src.config import COPY_THRESHOLD, METHOD  # noqa: E402
+from src.config import METHOD  # noqa: E402
 from src.pipeline import compare_two  # noqa: E402
 
 MANIFEST = "data/manifest.csv"
+PARTIAL_EDITS = {"trim", "half"}   # these keep only part of the original
 
 
 def stem(path: str) -> str:
     return os.path.splitext(os.path.basename(path))[0]
+
+
+def prf(tp, fp, fn):
+    p = tp / (tp + fp) if (tp + fp) else 0.0
+    r = tp / (tp + fn) if (tp + fn) else 0.0
+    f = 2 * p * r / (p + r) if (p + r) else 0.0
+    return p, r, f
 
 
 def main():
@@ -39,18 +48,20 @@ def main():
     if not originals or not copies:
         sys.exit("Need both originals and copies in the manifest.")
 
+    # overall + split counters
     tp = fp = fn = tn = 0
+    split = {"full": [0, 0], "partial": [0, 0]}  # [caught, total] true matches
     per_edit = defaultdict(lambda: {"hit": 0, "total": 0})
 
-    print(f"Method = {METHOD}, threshold = {COPY_THRESHOLD}")
+    print(f"Method = {METHOD}")
     print(f"Comparing {len(copies)} copies x {len(originals)} originals ...")
 
     for c in copies:
         truth = c["source_video"]
+        kind = "partial" if c["edit"] in PARTIAL_EDITS else "full"
         for o in originals:
             is_true = (stem(o["path"]) == truth)
-            score = compare_two(o["path"], c["path"])["combined"]
-            pred = score >= COPY_THRESHOLD
+            pred = compare_two(o["path"], c["path"])["is_copy"]
             if pred and is_true:
                 tp += 1
             elif pred and not is_true:
@@ -60,23 +71,28 @@ def main():
             else:
                 tn += 1
             if is_true:
+                split[kind][1] += 1
+                split[kind][0] += int(pred)
                 per_edit[c["edit"]]["total"] += 1
                 per_edit[c["edit"]]["hit"] += int(pred)
 
-    precision = tp / (tp + fp) if (tp + fp) else 0.0
-    recall = tp / (tp + fn) if (tp + fn) else 0.0
-    f1 = (2 * precision * recall / (precision + recall)
-          if (precision + recall) else 0.0)
-
+    p, r, f1 = prf(tp, fp, fn)
     print("\n===== RESULTS =====")
-    print(f"Precision : {precision:.2f}")
-    print(f"Recall    : {recall:.2f}")
+    print(f"Precision : {p:.2f}")
+    print(f"Recall    : {r:.2f}")
     print(f"F1-score  : {f1:.2f}")
     print(f"TP={tp}  FP={fp}  FN={fn}  TN={tn}")
-    print("\nPer-edit recall (did it catch each edit type?):")
+
+    print("\nRecall by copy type:")
+    for kind in ("full", "partial"):
+        hit, total = split[kind]
+        rec = hit / total if total else 0.0
+        print(f"  {kind:8s} {rec*100:5.1f}%  ({hit}/{total})")
+
+    print("\nRecall by edit:")
     for edit, d in sorted(per_edit.items()):
-        r = d["hit"] / d["total"] if d["total"] else 0.0
-        print(f"  {edit:8s} {r*100:5.1f}%  ({d['hit']}/{d['total']})")
+        rec = d["hit"] / d["total"] if d["total"] else 0.0
+        print(f"  {edit:8s} {rec*100:5.1f}%  ({d['hit']}/{d['total']})")
 
 
 if __name__ == "__main__":

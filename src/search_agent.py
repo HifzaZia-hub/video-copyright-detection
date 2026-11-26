@@ -22,7 +22,6 @@ import urllib.parse
 import urllib.request
 
 from .audio import transcribe
-from .config import COPY_THRESHOLD
 from .pipeline import compare_two
 
 DOWNLOAD_DIR = "data/downloads"
@@ -130,7 +129,7 @@ def find_copies(original_path: str, title: str = "",
                   "source": c["source"], "file": os.path.basename(path)})
         results.append(r)
 
-    results.sort(key=lambda x: x["combined"], reverse=True)
+    results.sort(key=lambda x: x["overlap"], reverse=True)
     return {"query": query, "keywords": keywords, "results": results}
 
 
@@ -148,6 +147,6 @@ if __name__ == "__main__":
     if not out["results"]:
         print("No candidates found/downloaded.")
     for h in out["results"]:
-        tag = "COPY" if h["combined"] >= COPY_THRESHOLD else "ok"
-        print(f"[{tag}] {h['combined']*100:3.0f}%  {h['source']:11s} "
-              f"{h['title'][:50]}\n        {h['url']}")
+        print(f"[{h['verdict']:16s}] theirs {h['suspect_coverage']*100:3.0f}% "
+              f"/ yours {h['original_coverage']*100:3.0f}%  {h['source']:11s} "
+              f"{h['title'][:45]}\n        {h['url']}")

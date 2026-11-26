@@ -12,40 +12,46 @@ import json
 import os
 
 from .audio import transcribe
-from .config import COPY_THRESHOLD, METHOD
+from .config import METHOD
 from .frames import extract_frame_hashes, extract_frames
-from .similarity import (clip_frame_similarity, combine, frame_similarity,
-                         text_similarity)
+from .similarity import (clip_coverage, decide, hash_coverage, text_similarity)
 
 
-def _frame_score(original_path: str, suspect_path: str) -> float:
-    """Pick the frame-matching method from config (hash baseline or CLIP ML)."""
+def _frame_coverages(original_path: str, suspect_path: str):
+    """Return (original_coverage, suspect_coverage) using the configured method.
+
+    Frames are extracted once per video, then compared both ways.
+    """
     if METHOD == "clip":
         from .features_clip import frame_embeddings
         emb_o = frame_embeddings(extract_frames(original_path))
         emb_s = frame_embeddings(extract_frames(suspect_path))
-        return clip_frame_similarity(emb_o, emb_s)
+        return clip_coverage(emb_o, emb_s), clip_coverage(emb_s, emb_o)
+
     orig_hashes = extract_frame_hashes(original_path)
     suspect_hashes = extract_frame_hashes(suspect_path)
-    return frame_similarity(orig_hashes, suspect_hashes)
+    return (hash_coverage(orig_hashes, suspect_hashes),
+            hash_coverage(suspect_hashes, orig_hashes))
 
 
 def compare_two(original_path: str, suspect_path: str) -> dict:
-    frame_score = _frame_score(original_path, suspect_path)
+    orig_cov, susp_cov = _frame_coverages(original_path, suspect_path)
 
     orig_text = transcribe(original_path)
     suspect_text = transcribe(suspect_path)
     has_text = bool(orig_text) and bool(suspect_text)
     text_score = text_similarity(orig_text, suspect_text) if has_text else 0.0
 
-    combined = combine(frame_score, text_score, has_text)
+    verdict, is_copy = decide(orig_cov, susp_cov, text_score)
     return {
         "original": os.path.basename(original_path),
         "suspect": os.path.basename(suspect_path),
-        "frame_score": round(frame_score, 3),
+        "original_coverage": round(orig_cov, 3),   # how much of YOURS was used
+        "suspect_coverage": round(susp_cov, 3),     # how much of THEIRS is yours
+        "overlap": round(max(orig_cov, susp_cov), 3),  # headline number
         "text_score": round(text_score, 3),
-        "combined": round(combined, 3),
-        "is_copy": combined >= COPY_THRESHOLD,
+        "verdict": verdict,
+        "is_copy": is_copy,
     }
 
 
@@ -59,7 +65,7 @@ def _load_links(reference_dir: str) -> dict:
 
 
 def search_collection(sample_path: str, reference_dir: str) -> list[dict]:
-    """Rank every reference video by similarity to the sample."""
+    """Rank every reference video by overlap with the sample."""
     links = _load_links(reference_dir)
     results = []
     for name in sorted(os.listdir(reference_dir)):
@@ -69,7 +75,7 @@ def search_collection(sample_path: str, reference_dir: str) -> list[dict]:
         r = compare_two(sample_path, ref_path)
         r["link"] = links.get(name, "")
         results.append(r)
-    results.sort(key=lambda x: x["combined"], reverse=True)
+    results.sort(key=lambda x: x["overlap"], reverse=True)
     return results
 
 
@@ -85,9 +91,10 @@ def main():
     elif args.collection:
         hits = search_collection(args.original, args.collection)
         for h in hits:
-            tag = "COPY" if h["is_copy"] else "ok"
             link = f"  -> {h['link']}" if h.get("link") else ""
-            print(f"[{tag}] {h['suspect']:40s} {h['combined']:.2f}{link}")
+            print(f"[{h['verdict']:16s}] {h['suspect']:36s} "
+                  f"yours {h['original_coverage']:.2f} / theirs "
+                  f"{h['suspect_coverage']:.2f}{link}")
     else:
         ap.error("Provide --suspect OR --collection")
 

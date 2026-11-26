@@ -3,7 +3,7 @@
 # Matching method for video frames:
 #   "hash" -> perceptual hashing (fast, free, no GPU)  [baseline]
 #   "clip" -> CLIP deep-learning embeddings (real ML, better on hard edits)
-# Run the evaluation with each one to compare baseline vs ML in your report.
+# For "clip":  pip install -r requirements-clip.txt
 METHOD = "hash"
 
 # How many frames per second to sample from each video.
@@ -18,12 +18,14 @@ HASH_MATCH_DISTANCE = 10
 # Cosine similarity (0-1) above which two frames count as the same shot.
 CLIP_SIM_THRESHOLD = 0.90
 
-# Weights for combining the two signals.
-FRAME_WEIGHT = 0.6
-TEXT_WEIGHT = 0.4
+# A video is flagged as a (partial) copy when this share of EITHER video's
+# frames is found in the other. 0.70 = 70%. This is a *coverage* threshold,
+# not an average, so a 50% partial copy is still reported honestly as 50%.
+VISUAL_THRESHOLD = 0.70
 
-# Final decision threshold (0.70 - 0.80 as in the proposal).
-COPY_THRESHOLD = 0.75
+# Separately flag an audio/narration match at or above this text similarity.
+# (Audio can only ADD a flag; it never lowers a visual match.)
+TEXT_THRESHOLD = 0.60
 
 # Whisper model size for audio->text: tiny / base / small / medium.
 # "base" is a good free balance; "tiny" is fastest.

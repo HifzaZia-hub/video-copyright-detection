@@ -8,7 +8,5 @@ streamlit
 faster-whisper
 yt-dlp
 
-# Optional ML upgrade — needed only when METHOD = "clip" in src/config.py
-# torch
-# open_clip_torch
-# faiss-cpu          # optional: faster search for large collections
+# For the CLIP (deep-learning) method, also run:
+#   pip install -r requirements-clip.txt
