@@ -54,13 +54,15 @@ if mode == "Find copies online (upload one)":
              "searches YouTube + Dailymotion, downloads candidates, and checks "
              "each one against your video.")
     original = st.file_uploader("Your original video", type=["mp4", "mkv", "webm", "mov"])
-    title = st.text_input("Optional: title / extra keywords", "")
+    title = st.text_input("Keywords to search (required)",
+                          placeholder="e.g. Baby Harry Potter")
     per_source = st.slider("Candidates per site", 3, 10, 5)
 
-    st.caption("⚠️ Finds copies discoverable by keyword search — not every copy "
-               "on the internet. Free search has daily limits.")
+    st.caption("⚠️ Keywords are required — the agent searches YouTube and "
+               "Dailymotion using them. It finds copies discoverable by keyword "
+               "search, not every copy on the internet. Free search has daily limits.")
 
-    if st.button("Find copies", disabled=not original):
+    if st.button("Find copies", disabled=not (original and title.strip())):
         with st.spinner("Searching, downloading and comparing… this can take a while."):
             out = find_copies(_save_upload(original), title=title, per_source=per_source)
         st.write(f"**Search query used:** {out['query']}")
