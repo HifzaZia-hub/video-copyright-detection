@@ -55,7 +55,7 @@ if mode == "Find copies online (upload one)":
              "each one against your video.")
     original = st.file_uploader("Your original video", type=["mp4", "mkv", "webm", "mov"])
     title = st.text_input("Keywords to search (required)",
-                          placeholder="e.g. Baby Harry Potter")
+                          placeholder="e.g. nature documentary")
     per_source = st.slider("Candidates per site", 3, 10, 5)
 
     st.caption("⚠️ Keywords are required — the agent searches YouTube and "
