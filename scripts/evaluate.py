@@ -2,8 +2,8 @@
 
 Reads data/manifest.csv (made by build_manifest.py). Every COPY should be
 detected as a copy of its source ORIGINAL. We check every (copy, original)
-pair, use the system's own verdict (is_copy), and compute precision, recall
-and F1 — reported separately for FULL copies and PARTIAL copies.
+pair and compute precision, recall and F1 — reported separately for FULL
+copies and PARTIAL copies.
 
     python scripts/build_manifest.py     # first, build the ground truth
     python scripts/evaluate.py           # then, measure
@@ -11,8 +11,8 @@ and F1 — reported separately for FULL copies and PARTIAL copies.
 Switch METHOD between "hash" and "clip" in src/config.py and run twice to
 compare baseline vs ML in your report.
 
-Note: this compares all copies against all originals, so keep the test set
-modest (e.g. 10-20 originals) or it gets slow.
+Speed: each video's frames and transcript are computed ONCE and reused, so
+runtime grows with the number of videos, not the number of pairs.
 """
 import csv
 import os
@@ -20,14 +20,38 @@ import sys
 from collections import defaultdict
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from src.audio import transcribe  # noqa: E402
 from src.config import METHOD  # noqa: E402
-from src.pipeline import compare_two  # noqa: E402
+from src.frames import extract_frame_hashes, extract_frames  # noqa: E402
+from src.similarity import (clip_coverage, decide, hash_coverage,  # noqa: E402
+                            text_similarity)
 
 MANIFEST = "data/manifest.csv"
 PARTIAL_EDITS = {"trim", "half"}   # these keep only part of the original
 
+_cache = {}
 
-def stem(path: str) -> str:
+
+def signature(path):
+    """Compute (frame_signature, transcript) for a video once, then reuse."""
+    if path not in _cache:
+        if METHOD == "clip":
+            from src.features_clip import frame_embeddings
+            sig = frame_embeddings(extract_frames(path))
+        else:
+            sig = extract_frame_hashes(path)
+        _cache[path] = (sig, transcribe(path))
+    return _cache[path]
+
+
+def coverages(a_sig, b_sig):
+    """Return (coverage of A in B, coverage of B in A)."""
+    if METHOD == "clip":
+        return clip_coverage(a_sig, b_sig), clip_coverage(b_sig, a_sig)
+    return hash_coverage(a_sig, b_sig), hash_coverage(b_sig, a_sig)
+
+
+def stem(path):
     return os.path.splitext(os.path.basename(path))[0]
 
 
@@ -48,20 +72,24 @@ def main():
     if not originals or not copies:
         sys.exit("Need both originals and copies in the manifest.")
 
-    # overall + split counters
     tp = fp = fn = tn = 0
-    split = {"full": [0, 0], "partial": [0, 0]}  # [caught, total] true matches
+    split = {"full": [0, 0], "partial": [0, 0]}   # [caught, total]
     per_edit = defaultdict(lambda: {"hit": 0, "total": 0})
 
     print(f"Method = {METHOD}")
-    print(f"Comparing {len(copies)} copies x {len(originals)} originals ...")
+    print(f"Preparing {len(originals) + len(copies)} videos "
+          f"(frames + transcripts, once each)...")
 
     for c in copies:
-        truth = c["source_video"]
+        c_sig, c_text = signature(c["path"])
         kind = "partial" if c["edit"] in PARTIAL_EDITS else "full"
         for o in originals:
-            is_true = (stem(o["path"]) == truth)
-            pred = compare_two(o["path"], c["path"])["is_copy"]
+            o_sig, o_text = signature(o["path"])
+            is_true = (stem(o["path"]) == c["source_video"])
+            orig_cov, susp_cov = coverages(o_sig, c_sig)
+            text = (text_similarity(o_text, c_text)
+                    if (o_text and c_text) else 0.0)
+            pred = decide(orig_cov, susp_cov, text)[1]
             if pred and is_true:
                 tp += 1
             elif pred and not is_true:
@@ -86,13 +114,13 @@ def main():
     print("\nRecall by copy type:")
     for kind in ("full", "partial"):
         hit, total = split[kind]
-        rec = hit / total if total else 0.0
-        print(f"  {kind:8s} {rec*100:5.1f}%  ({hit}/{total})")
+        print(f"  {kind:8s} {(hit / total * 100 if total else 0):5.1f}%  "
+              f"({hit}/{total})")
 
     print("\nRecall by edit:")
     for edit, d in sorted(per_edit.items()):
-        rec = d["hit"] / d["total"] if d["total"] else 0.0
-        print(f"  {edit:8s} {rec*100:5.1f}%  ({d['hit']}/{d['total']})")
+        print(f"  {edit:8s} {(d['hit'] / d['total'] * 100 if d['total'] else 0):5.1f}%"
+              f"  ({d['hit']}/{d['total']})")
 
 
 if __name__ == "__main__":
