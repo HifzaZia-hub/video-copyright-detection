@@ -50,9 +50,9 @@ mode = st.radio(
 
 # --------------------------------------------------- one-video online agent ---
 if mode == "Find copies online (upload one)":
-    st.write("Upload **one** video. The agent pulls keywords from its audio, "
-             "searches YouTube + Dailymotion, downloads candidates, and checks "
-             "each one against your video.")
+    st.write("Upload **one** video and enter search keywords. The agent searches "
+             "YouTube + Dailymotion with your keywords, downloads the candidate "
+             "videos, and checks each one against your video.")
     original = st.file_uploader("Your original video", type=["mp4", "mkv", "webm", "mov"])
     title = st.text_input("Keywords to search (required)",
                           placeholder="e.g. homemade chocolate cake recipe")
